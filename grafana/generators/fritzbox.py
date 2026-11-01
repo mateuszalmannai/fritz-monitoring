@@ -226,23 +226,19 @@ place(ts("Wi-Fi clients per band", [tgt("fritz_wifi_associations_count", "{{wifi
          legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter",
          overrides=[color_ov("2.4GHz", "yellow"), color_ov("5GHz", "green"), color_ov("Guest", "purple")]), 10, 14, 6)
 Y[0] += 6
-place(table("Wi-Fi clients now",
-            [tgt("fritz_wifi_client_signal_strength", ref="A", instant=True, fmt="table"),
-             tgt("fritz_wifi_client_speed", ref="B", instant=True, fmt="table")],
-            {"excludeByName": {"Time": True, "__name__": True, "serial": True, "friendly_name": True, "job": True, "instance": True},
-             "indexByName": {"client_ip": 0, "wifi_name": 1, "Value #A": 2, "Value #B": 3, "client_mac": 4},
-             "renameByName": {"client_ip": "IP", "client_mac": "MAC", "wifi_name": "Band", "Value #A": "Signal", "Value #B": "Link speed"}},
-            overrides=[col("Signal", [{"id": "unit", "value": "percent"}, {"id": "min", "value": 0}, {"id": "max", "value": 100},
-                                      {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "basic", "valueDisplayMode": "text"}},
-                                      {"id": "color", "value": {"mode": "continuous-RdYlGr"}}]),
-                       col("Link speed", [{"id": "unit", "value": "Mbits"}])],
-            sort=[{"displayName": "Signal", "desc": True}],
-            desc="FRITZ_WIFI_CLIENT_INFO=true. Clients only have IP and MAC; look up names in the FRITZ!Box device list. Phones often use private (random) MACs."),
-      0, 10, 9)
-place(ts("Client signal strength", [tgt("fritz_wifi_client_signal_strength", "{{client_ip}} ({{wifi_name}})", "A")], unit="percent",
-         minv=0, maxv=100, legend_calcs=["min", "mean", "lastNotNull"]), 10, 7, 9)
-place(ts("Client link speed", [tgt("fritz_wifi_client_speed", "{{client_ip}} ({{wifi_name}})", "A")], unit="Mbits",
-         legend_calcs=["min", "mean", "lastNotNull"], interp="stepAfter"), 17, 7, 9)
+# Wi-Fi client metrics only carry client_ip/client_mac. Join the device name from fritz-extras via the MAC;
+# clients fritz-extras doesn't name (e.g. DEVICE_ALLOWLIST) fall back to their IP. Labels: name, mac, wifi_name.
+def named(metric):
+    m = f'label_replace({metric}, "mac", "$1", "client_mac", "(.*)")'
+    joined = f'{m} * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)'
+    fallback = f'label_replace({m}, "name", "$1", "client_ip", "(.*)")'
+    return f'max by (name, mac, wifi_name) (({joined}) or on (mac) {fallback})'
+
+wifi_client_desc = "Device names come from fritz-extras, matched by MAC (IP if no name is known). The per-device table is under Devices."
+place(ts("Client signal strength", [tgt(named("fritz_wifi_client_signal_strength"), "{{name}} ({{wifi_name}})", "A")], unit="percent",
+         minv=0, maxv=100, legend_calcs=["min", "mean", "lastNotNull"], desc=wifi_client_desc), 0, 12, 9)
+place(ts("Client link speed", [tgt(named("fritz_wifi_client_speed"), "{{name}} ({{wifi_name}})", "A")], unit="Mbits", desc=wifi_client_desc,
+         legend_calcs=["min", "mean", "lastNotNull"], interp="stepAfter"), 12, 12, 9)
 Y[0] += 9
 # Mesh backhaul, two sources:
 # - fritz-extras: the whole path FRITZ!Box -> repeater hop by hop, also through non-mesh nodes such as powerline adapters.
@@ -364,22 +360,30 @@ Y[0] += 8
 row("Devices")
 dev_desc = ("From the FRITZ!Box network list (Home Network → Network), read by fritz-extras every 5 min. "
             "Names are the ones set in the FRITZ!Box. DEVICE_ALLOWLIST in fritz.env limits which devices are named.")
+# One row per device. Queries are reduced to the same key labels (name, mac) so "merge" joins them;
+# Wi-Fi band and signal (fritz_exporter, FRITZ_WIFI_CLIENT_INFO=true) stay empty for wired devices.
 place(table("Devices online now",
-            [tgt("fritz_extras_host_info", ref="A", instant=True, fmt="table"),
-             tgt("fritz_extras_host_speed_mbps", ref="B", instant=True, fmt="table")],
-            {"excludeByName": {"Time": True, "__name__": True, "job": True, "instance": True, "Value #A": True},
-             "indexByName": {"name": 0, "interface": 1, "Value #B": 2, "ip": 3, "mac": 4},
-             "renameByName": {"name": "Device", "interface": "Connection", "Value #B": "Link speed", "ip": "IP", "mac": "MAC"}},
+            [tgt("max by (name, mac, interface, ip) (fritz_extras_host_info)", ref="A", instant=True, fmt="table"),
+             tgt("max by (name, mac) (fritz_extras_host_speed_mbps)", ref="B", instant=True, fmt="table"),
+             tgt(named("fritz_wifi_client_signal_strength"), ref="C", instant=True, fmt="table")],
+            {"excludeByName": {"Time": True, "Value #A": True},
+             "indexByName": {"name": 0, "interface": 1, "wifi_name": 2, "Value #C": 3, "Value #B": 4, "ip": 5, "mac": 6},
+             "renameByName": {"name": "Device", "interface": "Connection", "wifi_name": "Band", "Value #C": "Signal",
+                              "Value #B": "Link speed", "ip": "IP", "mac": "MAC"}},
             overrides=[col("Link speed", [{"id": "unit", "value": "Mbits"}]),
+                       col("Signal", [{"id": "unit", "value": "percent"}, {"id": "min", "value": 0}, {"id": "max", "value": 100},
+                                      {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "basic", "valueDisplayMode": "text"}},
+                                      {"id": "color", "value": {"mode": "continuous-RdYlGr"}}]),
                        col("Connection", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
                                           {"id": "mappings", "value": mapping(("LAN", "LAN", "green"), ("Wi-Fi", "Wi-Fi", "blue"),
                                                                               ("Powerline", "Powerline", "purple"), ("other", "other", "text"))}])],
-            sort=[{"displayName": "Device", "desc": False}], desc=dev_desc),
-      0, 10, 12)
+            sort=[{"displayName": "Device", "desc": False}],
+            desc=dev_desc + " Band and signal come from the FRITZ!Box Wi-Fi client list, matched by MAC; phones with private (random) MACs still match, as both sources see the same MAC."),
+      0, 14, 12)
 place(ts("Devices online by connection", [tgt("fritz_extras_hosts_online", "{{interface}}", "A")],
          stack=True, fill=40, decimals=0, legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter", desc=dev_desc,
          overrides=[color_ov("LAN", "green"), color_ov("Wi-Fi", "blue"), color_ov("Powerline", "purple"), color_ov("other", "text")]),
-      10, 14, 12)
+      14, 10, 12)
 Y[0] += 12
 timeline = {"type": "state-timeline", "title": "Device online history",
             "description": dev_desc + " Green = online, grey = offline, empty = no data yet. Set the time range to 7 days to see daily patterns.",

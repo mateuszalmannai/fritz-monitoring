@@ -3464,163 +3464,17 @@
       }
     },
     {
-      "type": "table",
-      "title": "Wi-Fi clients now",
-      "description": "FRITZ_WIFI_CLIENT_INFO=true. Clients only have IP and MAC; look up names in the FRITZ!Box device list. Phones often use private (random) MACs.",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "fritz_wifi_client_signal_strength",
-          "legendFormat": "",
-          "refId": "A",
-          "instant": true,
-          "range": false,
-          "format": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "fritz_wifi_client_speed",
-          "legendFormat": "",
-          "refId": "B",
-          "instant": true,
-          "range": false,
-          "format": "table"
-        }
-      ],
-      "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "Time": true,
-              "__name__": true,
-              "serial": true,
-              "friendly_name": true,
-              "job": true,
-              "instance": true
-            },
-            "indexByName": {
-              "client_ip": 0,
-              "wifi_name": 1,
-              "Value #A": 2,
-              "Value #B": 3,
-              "client_mac": 4
-            },
-            "renameByName": {
-              "client_ip": "IP",
-              "client_mac": "MAC",
-              "wifi_name": "Band",
-              "Value #A": "Signal",
-              "Value #B": "Link speed"
-            }
-          }
-        }
-      ],
-      "options": {
-        "showHeader": true,
-        "cellHeight": "sm",
-        "sortBy": [
-          {
-            "displayName": "Signal",
-            "desc": true
-          }
-        ],
-        "footer": {
-          "show": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            }
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Signal"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "min",
-                "value": 0
-              },
-              {
-                "id": "max",
-                "value": 100
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "gauge",
-                  "mode": "basic",
-                  "valueDisplayMode": "text"
-                }
-              },
-              {
-                "id": "color",
-                "value": {
-                  "mode": "continuous-RdYlGr"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Link speed"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbits"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 64,
-        "w": 10,
-        "h": 9
-      },
-      "id": 41,
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      }
-    },
-    {
       "type": "timeseries",
       "title": "Client signal strength",
-      "description": "",
+      "description": "Device names come from fritz-extras, matched by MAC (IP if no name is known). The per-device table is under Devices.",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wifi_client_signal_strength",
-          "legendFormat": "{{client_ip}} ({{wifi_name}})",
+          "expr": "max by (name, mac, wifi_name) ((label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\") * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)) or on (mac) label_replace(label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\"), \"name\", \"$1\", \"client_ip\", \"(.*)\"))",
+          "legendFormat": "{{name}} ({{wifi_name}})",
           "refId": "A",
           "range": true,
           "instant": false
@@ -3668,12 +3522,12 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 10,
+        "x": 0,
         "y": 64,
-        "w": 7,
+        "w": 12,
         "h": 9
       },
-      "id": 42,
+      "id": 41,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3682,15 +3536,15 @@
     {
       "type": "timeseries",
       "title": "Client link speed",
-      "description": "",
+      "description": "Device names come from fritz-extras, matched by MAC (IP if no name is known). The per-device table is under Devices.",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wifi_client_speed",
-          "legendFormat": "{{client_ip}} ({{wifi_name}})",
+          "expr": "max by (name, mac, wifi_name) ((label_replace(fritz_wifi_client_speed, \"mac\", \"$1\", \"client_mac\", \"(.*)\") * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)) or on (mac) label_replace(label_replace(fritz_wifi_client_speed, \"mac\", \"$1\", \"client_mac\", \"(.*)\"), \"name\", \"$1\", \"client_ip\", \"(.*)\"))",
+          "legendFormat": "{{name}} ({{wifi_name}})",
           "refId": "A",
           "range": true,
           "instant": false
@@ -3736,12 +3590,12 @@
         "overrides": []
       },
       "gridPos": {
-        "x": 17,
+        "x": 12,
         "y": 64,
-        "w": 7,
+        "w": 12,
         "h": 9
       },
-      "id": 43,
+      "id": 42,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3832,7 +3686,7 @@
         "w": 6,
         "h": 4
       },
-      "id": 44,
+      "id": 43,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -3909,7 +3763,7 @@
         "w": 6,
         "h": 5
       },
-      "id": 45,
+      "id": 44,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4202,7 +4056,7 @@
         "w": 18,
         "h": 9
       },
-      "id": 46,
+      "id": 45,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4212,7 +4066,7 @@
       "type": "row",
       "title": "Connections and provider",
       "collapsed": false,
-      "id": 47,
+      "id": 46,
       "gridPos": {
         "x": 0,
         "y": 82,
@@ -4361,7 +4215,7 @@
         "w": 14,
         "h": 8
       },
-      "id": 48,
+      "id": 47,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4426,7 +4280,7 @@
         "w": 10,
         "h": 2
       },
-      "id": 49,
+      "id": 48,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4491,7 +4345,7 @@
         "w": 10,
         "h": 2
       },
-      "id": 50,
+      "id": 49,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4604,7 +4458,7 @@
         "w": 6,
         "h": 4
       },
-      "id": 51,
+      "id": 50,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4669,7 +4523,7 @@
         "w": 4,
         "h": 4
       },
-      "id": 52,
+      "id": 51,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4679,7 +4533,7 @@
       "type": "row",
       "title": "FRITZ!Box system",
       "collapsed": false,
-      "id": 53,
+      "id": 52,
       "gridPos": {
         "x": 0,
         "y": 91,
@@ -4755,7 +4609,7 @@
         "w": 4,
         "h": 5
       },
-      "id": 54,
+      "id": 53,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4828,7 +4682,7 @@
         "w": 4,
         "h": 5
       },
-      "id": 55,
+      "id": 54,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4901,7 +4755,7 @@
         "w": 4,
         "h": 5
       },
-      "id": 56,
+      "id": 55,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -4978,7 +4832,7 @@
         "w": 4,
         "h": 5
       },
-      "id": 57,
+      "id": 56,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5091,7 +4945,7 @@
         "w": 8,
         "h": 5
       },
-      "id": 58,
+      "id": 57,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5218,7 +5072,7 @@
         "w": 12,
         "h": 8
       },
-      "id": 59,
+      "id": 58,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5355,7 +5209,7 @@
         "w": 6,
         "h": 8
       },
-      "id": 60,
+      "id": 59,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5423,7 +5277,7 @@
         "w": 6,
         "h": 8
       },
-      "id": 61,
+      "id": 60,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5433,7 +5287,7 @@
       "type": "row",
       "title": "Devices",
       "collapsed": false,
-      "id": 62,
+      "id": 61,
       "gridPos": {
         "x": 0,
         "y": 105,
@@ -5445,14 +5299,14 @@
     {
       "type": "table",
       "title": "Devices online now",
-      "description": "From the FRITZ!Box network list (Home Network → Network), read by fritz-extras every 5 min. Names are the ones set in the FRITZ!Box. DEVICE_ALLOWLIST in fritz.env limits which devices are named.",
+      "description": "From the FRITZ!Box network list (Home Network → Network), read by fritz-extras every 5 min. Names are the ones set in the FRITZ!Box. DEVICE_ALLOWLIST in fritz.env limits which devices are named. Band and signal come from the FRITZ!Box Wi-Fi client list, matched by MAC; phones with private (random) MACs still match, as both sources see the same MAC.",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_extras_host_info",
+          "expr": "max by (name, mac, interface, ip) (fritz_extras_host_info)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -5464,9 +5318,21 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_extras_host_speed_mbps",
+          "expr": "max by (name, mac) (fritz_extras_host_speed_mbps)",
           "legendFormat": "",
           "refId": "B",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max by (name, mac, wifi_name) ((label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\") * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)) or on (mac) label_replace(label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\"), \"name\", \"$1\", \"client_ip\", \"(.*)\"))",
+          "legendFormat": "",
+          "refId": "C",
           "instant": true,
           "range": false,
           "format": "table"
@@ -5482,21 +5348,22 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true,
               "Value #A": true
             },
             "indexByName": {
               "name": 0,
               "interface": 1,
-              "Value #B": 2,
-              "ip": 3,
-              "mac": 4
+              "wifi_name": 2,
+              "Value #C": 3,
+              "Value #B": 4,
+              "ip": 5,
+              "mac": 6
             },
             "renameByName": {
               "name": "Device",
               "interface": "Connection",
+              "wifi_name": "Band",
+              "Value #C": "Signal",
               "Value #B": "Link speed",
               "ip": "IP",
               "mac": "MAC"
@@ -5536,6 +5403,40 @@
               {
                 "id": "unit",
                 "value": "Mbits"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Signal"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "min",
+                "value": 0
+              },
+              {
+                "id": "max",
+                "value": 100
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic",
+                  "valueDisplayMode": "text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "continuous-RdYlGr"
+                }
               }
             ]
           },
@@ -5588,10 +5489,10 @@
       "gridPos": {
         "x": 0,
         "y": 106,
-        "w": 10,
+        "w": 14,
         "h": 12
       },
-      "id": 63,
+      "id": 62,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5716,12 +5617,12 @@
         ]
       },
       "gridPos": {
-        "x": 10,
+        "x": 14,
         "y": 106,
-        "w": 14,
+        "w": 10,
         "h": 12
       },
-      "id": 64,
+      "id": 63,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5803,7 +5704,7 @@
         "w": 24,
         "h": 18
       },
-      "id": 65,
+      "id": 64,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5813,7 +5714,7 @@
       "type": "row",
       "title": "LAN and exporter",
       "collapsed": false,
-      "id": 66,
+      "id": 65,
       "gridPos": {
         "x": 0,
         "y": 136,
@@ -5907,7 +5808,7 @@
         "w": 6,
         "h": 4
       },
-      "id": 67,
+      "id": 66,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -5983,7 +5884,7 @@
         "w": 4,
         "h": 4
       },
-      "id": 68,
+      "id": 67,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -6059,7 +5960,7 @@
         "w": 4,
         "h": 4
       },
-      "id": 69,
+      "id": 68,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -6124,7 +6025,7 @@
         "w": 4,
         "h": 4
       },
-      "id": 70,
+      "id": 69,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -6273,7 +6174,7 @@
         "w": 6,
         "h": 4
       },
-      "id": 71,
+      "id": 70,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -6341,7 +6242,7 @@
         "w": 12,
         "h": 6
       },
-      "id": 72,
+      "id": 71,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -6409,7 +6310,7 @@
         "w": 8,
         "h": 6
       },
-      "id": 73,
+      "id": 72,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -6482,7 +6383,7 @@
         "w": 4,
         "h": 6
       },
-      "id": 74,
+      "id": 73,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
