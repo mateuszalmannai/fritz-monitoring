@@ -1,5 +1,7 @@
 # FRITZ!Box monitoring and Pi-hole on a Raspberry Pi
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A Docker Compose stack on a Raspberry Pi that:
 
 - **monitors the FRITZ!Box** (bandwidth, connection, DSL/cable stats, CPU temperature/load, RAM, which
