@@ -72,6 +72,11 @@ def limit_ov(name, color=LIMIT, dash=False):
     return color_ov(name, color, extra)
 
 def table(title, targets, organize, overrides=None, desc="", sort=None):
+    # "merge" joins rows whose shared columns are equal. A bare metric query also returns a __name__
+    # column, which differs per query, so nothing would merge (each query got its own rows).
+    # "max without ()" keeps every label except __name__.
+    for t in targets:
+        t["expr"] = f"max without () ({t['expr']})"
     return {"type": "table", "title": title, "description": desc, "targets": targets,
             "transformations": [{"id": "merge", "options": {}}, {"id": "organize", "options": organize}],
             "options": {"showHeader": True, "cellHeight": "sm", "sortBy": sort or [], "footer": {"show": False}},

@@ -2303,7 +2303,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (name, mac, interface, ip) (fritz_extras_host_info)",
+          "expr": "max without () (max by (name, mac, interface, ip) (fritz_extras_host_info))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -2315,7 +2315,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (name, mac) (fritz_extras_host_speed_mbps)",
+          "expr": "max without () (max by (name, mac) (fritz_extras_host_speed_mbps))",
           "legendFormat": "",
           "refId": "B",
           "instant": true,
@@ -2327,7 +2327,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "max by (name, mac, wifi_name) ((label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\") * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)) or on (mac) label_replace(label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\"), \"name\", \"$1\", \"client_ip\", \"(.*)\"))",
+          "expr": "max without () (max by (name, mac, wifi_name) ((label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\") * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)) or on (mac) label_replace(label_replace(fritz_wifi_client_signal_strength, \"mac\", \"$1\", \"client_mac\", \"(.*)\"), \"name\", \"$1\", \"client_ip\", \"(.*)\")))",
           "legendFormat": "",
           "refId": "C",
           "instant": true,
@@ -2730,7 +2730,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wifi_status",
+          "expr": "max without () (fritz_wifi_status)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -2742,7 +2742,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wifi_channel",
+          "expr": "max without () (fritz_wifi_channel)",
           "legendFormat": "",
           "refId": "B",
           "instant": true,
@@ -2754,7 +2754,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wifi_associations_count",
+          "expr": "max without () (fritz_wifi_associations_count)",
           "legendFormat": "",
           "refId": "C",
           "instant": true,
@@ -4512,7 +4512,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wan_connection_status",
+          "expr": "max without () (fritz_wan_connection_status)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -4524,7 +4524,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "fritz_wan_connection_uptime_seconds_total",
+          "expr": "max without () (fritz_wan_connection_uptime_seconds_total)",
           "legendFormat": "",
           "refId": "B",
           "instant": true,
