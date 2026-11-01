@@ -2470,10 +2470,15 @@
                         "color": "purple",
                         "index": 2
                       },
+                      "FRITZ!Box": {
+                        "text": "FRITZ!Box",
+                        "color": "orange",
+                        "index": 3
+                      },
                       "other": {
                         "text": "other",
                         "color": "text",
-                        "index": 3
+                        "index": 4
                       }
                     }
                   }
@@ -2592,6 +2597,21 @@
                 "value": {
                   "mode": "fixed",
                   "fixedColor": "purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FRITZ!Box"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
                 }
               }
             ]

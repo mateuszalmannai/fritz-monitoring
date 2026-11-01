@@ -440,7 +440,7 @@ connection, online history per device), and the mesh panels in **Wi-Fi and mesh*
 | `fritz_extras_ram_percent` | RAM by `type`: `fixed` (system), `dynamic` (in use), `free`; together 100 %. | ~25 / 33 / 42 % |
 | `fritz_extras_energy_percent` | Current energy use per `component` (System, CPU, Wi-Fi, DSL, Analog phone ports, USB) in percent of that part's maximum. The box shows no watts. | System ~40 %, Wi-Fi and DSL 100 % |
 | `fritz_extras_host_active` | 1 = the device is online, 0 = known but offline. Labels `name` (as set in the FRITZ!Box) and `mac`. Several devices can share a name; the MAC tells them apart. | 34 devices, ~15 online |
-| `fritz_extras_host_info` | For online devices: `ip` and `interface` (LAN, Wi-Fi, Powerline, other). Always 1. | |
+| `fritz_extras_host_info` | For online devices: `ip` and `interface` (LAN, Wi-Fi, Powerline, FRITZ!Box for the box itself, other). Always 1. | |
 | `fritz_extras_host_speed_mbps` | Link speed of an online device: LAN port speed, or the Wi-Fi/powerline rate. | LAN 100/1000, Wi-Fi 100-300 |
 | `fritz_extras_hosts_online` | Devices online now, per `interface`. Counts all devices, also with an allow list. | |
 | `fritz_extras_hosts_known` | Devices in the network list, online or not. | 34 |

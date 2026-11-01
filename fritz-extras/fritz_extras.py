@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import threading
 import time
 import urllib.parse
@@ -86,10 +87,16 @@ def fetch_hosts():
     # Only name + MAC identify a device's series: offline devices report no interface (and sometimes no
     # IP), so those go into a separate info metric for online devices; the online/offline timeline stays one series.
     lines, online = [], {}
+    try:
+        box_ip = socket.gethostbyname(HOST)
+    except OSError:
+        box_ip = HOST
     for it in items:
         name, mac = it.findtext("HostName") or "", it.findtext("MACAddress") or ""
         active = it.findtext("Active") == "1"
         iface = INTERFACES.get(it.findtext("InterfaceType") or "", it.findtext("InterfaceType"))
+        if iface == "other" and it.findtext("IPAddress") == box_ip:
+            iface = "FRITZ!Box"  # the box lists itself, without an interface type
         if active:
             online[iface] = online.get(iface, 0) + 1
         if ALLOWLIST and name.lower() not in ALLOWLIST and mac.lower() not in ALLOWLIST:
@@ -98,7 +105,8 @@ def fetch_hosts():
         if active:
             lines.append(line("fritz_extras_host_info", 1, name=name, mac=mac, ip=it.findtext("IPAddress") or "", interface=iface))
             lines.append(line("fritz_extras_host_speed_mbps", int(it.findtext("X_AVM-DE_Speed") or 0), name=name, mac=mac))
-    for iface in ("LAN", "Wi-Fi", "Powerline", "other"):
+    # Fixed series (0 when empty); "other" (unknown interface type) only when such a device is online.
+    for iface in ("LAN", "Wi-Fi", "Powerline", "FRITZ!Box", *sorted(set(online) - {"LAN", "Wi-Fi", "Powerline", "FRITZ!Box"})):
         lines.append(line("fritz_extras_hosts_online", online.get(iface, 0), interface=iface))
     lines.append(line("fritz_extras_hosts_known", len(items)))
     return lines

@@ -201,14 +201,14 @@ place(table("Devices online now",
                                       {"id": "color", "value": {"mode": "continuous-RdYlGr"}}]),
                        col("Connection", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
                                           {"id": "mappings", "value": mapping(("LAN", "LAN", "green"), ("Wi-Fi", "Wi-Fi", "blue"),
-                                                                              ("Powerline", "Powerline", "purple"), ("other", "other", "text"))}])],
+                                                                              ("Powerline", "Powerline", "purple"), ("FRITZ!Box", "FRITZ!Box", "orange"), ("other", "other", "text"))}])],
             sort=[{"displayName": "Device", "desc": False}],
             desc=dev_desc + " Band and signal come from the FRITZ!Box Wi-Fi client list, matched by MAC; phones with private (random) MACs still match, as both sources see the same MAC."),
       0, 24, 17)   # full width, tall enough for ~16 devices without scrolling (peak so far: 15)
 Y[0] += 17
 place(ts("Devices online by connection", [tgt("fritz_extras_hosts_online", "{{interface}}", "A")],
          stack=True, fill=40, decimals=0, legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter", desc=dev_desc,
-         overrides=[color_ov("LAN", "green"), color_ov("Wi-Fi", "blue"), color_ov("Powerline", "purple"), color_ov("other", "text")]),
+         overrides=[color_ov("LAN", "green"), color_ov("Wi-Fi", "blue"), color_ov("Powerline", "purple"), color_ov("FRITZ!Box", "orange"), color_ov("other", "text")]),
       0, 24, 12)   # tall enough for the 4-row legend
 Y[0] += 12
 timeline = {"type": "state-timeline", "title": "Device online history",
