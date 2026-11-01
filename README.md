@@ -188,7 +188,7 @@ sudo usermod -aG docker $USER                  # then log out and back in
 From the machine with this folder (excluding private files). `cornholio` is the SSH host alias for the
 Pi; how SSH access is set up (Secretive key) is described in `REINSTALL-PI.md`.
 ```bash
-rsync -a --exclude '*.env' --exclude .claude ./ cornholio:fritz-monitoring/
+rsync -a --exclude '*.env' --exclude .claude --exclude .git ./ cornholio:fritz-monitoring/
 ```
 On the Pi:
 ```bash

@@ -7,7 +7,7 @@ Set up this project on the Raspberry Pi, following CLAUDE.md and README.md. Work
 2. **Fresh install or restore?** Ask whether this is a first setup or a reinstall with backups on the Synology. For a restore, follow README → Backups → "After a full reinstall" instead of creating new env files and volumes in steps 5–7 (Docker must be installed first).
 3. **Storage:** decide whether the Pi boots from the SSD (case A) or the SD card (case B). For case B, show me the exact fstab line, daemon.json and systemd drop-in you'd apply, and wait for my OK before changing anything.
 4. **Docker:** install it via get.docker.com if missing (ask first), and add my user to the `docker` group.
-5. **Project and credentials:** copy the project to `~/fritz-monitoring` on the Pi (rsync, without `*.env` and `.claude`). Create each missing env file from its `.example` with mode 600 (README step 4):
+5. **Project and credentials:** copy the project to `~/fritz-monitoring` on the Pi (rsync, without `*.env`, `.claude` and `.git`). Create each missing env file from its `.example` with mode 600 (README step 4):
    - `fritz.env`: I fill it in myself. Remind me of the FRITZ!Box steps: monitoring user with "FRITZ!Box Settings" permission, password max. 32 characters, "Allow access for applications". `DEVICE_ALLOWLIST` (fritz-extras) stays empty unless I want only some devices named.
    - `pihole.env`: I set the Pi-hole web password myself.
    - `grafana.env`: generate a random `NTFY_TOPIC` without printing it; I read it on the Pi for the ntfy app.

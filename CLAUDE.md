@@ -9,7 +9,7 @@ Target host: Raspberry Pi 4 Model B `cornholio` (board rev 1.4, 8 GB RAM, 4 core
 
 ## Working from the Mac
 Claude Code usually runs on the Mac in `~/scripts/fritz-monitoring` and reaches the Pi with `ssh cornholio` (Secretive key, see `REINSTALL-PI.md`). The project lives at `~/fritz-monitoring` on the Pi.
-- Deploy: `rsync -a --exclude '*.env' --exclude .claude ./ cornholio:fritz-monitoring/`. The real `*.env` files exist only on the Pi (mode 600); never overwrite them.
+- Deploy: `rsync -a --exclude '*.env' --exclude .claude --exclude .git ./ cornholio:fritz-monitoring/`. The real `*.env` files exist only on the Pi (mode 600); never overwrite them.
 - After rsyncing `prometheus.yml` or `blackbox.yml`, restart the container (`docker compose restart prometheus`): rsync replaces the file, and the bind mount keeps the old inode.
 - `docker compose exec` inside `ssh ... '...'` or a heredoc swallows stdin; append `</dev/null` (or use `-T`).
 - If `ssh cornholio` fails with "Permission denied (publickey)", the Secretive agent is unavailable (e.g. Mac locked); ask the user rather than adding other keys.
