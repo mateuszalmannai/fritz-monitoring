@@ -81,6 +81,14 @@ def table(title, targets, organize, overrides=None, desc="", sort=None):
 def col(name, props):
     return {"matcher": {"id": "byName", "options": name}, "properties": props}
 
+# Wi-Fi client metrics only carry client_ip/client_mac. Join the device name from fritz-extras via the MAC;
+# clients fritz-extras doesn't name (e.g. DEVICE_ALLOWLIST) fall back to their IP. Labels: name, mac, wifi_name.
+def named(metric):
+    m = f'label_replace({metric}, "mac", "$1", "client_mac", "(.*)")'
+    joined = f'{m} * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)'
+    fallback = f'label_replace({m}, "name", "$1", "client_ip", "(.*)")'
+    return f'max by (name, mac, wifi_name) (({joined}) or on (mac) {fallback})'
+
 # ---------------------------------------------------------------- Status
 row("Status")
 place(stat("Version", [tgt("fritz_uptime_seconds_total", "{{modelname}} · FRITZ!OS {{softwareversion}}", instant=True)],
@@ -168,45 +176,51 @@ compare["options"]["legend"]["calcs"] = ["sum", "max"]
 place(compare, 0, 24, 8)
 Y[0] += 8
 
-# ---------------------------------------------------------------- DSL line
-row("DSL line")
-place(stat("Sync rate (current)", [tgt('fritz_dsl_datarate_kbps{direction="rx",type="curr"} * 1000', "Down", "A", instant=True),
-                                   tgt('fritz_dsl_datarate_kbps{direction="tx",type="curr"} * 1000', "Up", "B", instant=True)],
-           unit="bps", text_mode="value_and_name", color=LIMIT, decimals=1,
-           desc="fritz_dsl_datarate_kbps{type=\"curr\"}: what the line is synced at (your tariff profile). The real ceiling."), 0, 6, 4)
-place(stat("Attainable rate", [tgt('fritz_dsl_datarate_kbps{direction="rx",type="max"} * 1000', "Down", "A", instant=True),
-                               tgt('fritz_dsl_datarate_kbps{direction="tx",type="max"} * 1000', "Up", "B", instant=True)],
-           unit="bps", text_mode="value_and_name", color="text", decimals=1,
-           desc="fritz_dsl_datarate_kbps{type=\"max\"} (same as fritz_wan_max_bitrate_bps): what the line could carry."), 6, 6, 4)
-place(stat("Line capacity used", [tgt('100 * fritz_dsl_datarate_kbps{direction="rx",type="curr"} / ignoring(type) fritz_dsl_datarate_kbps{direction="rx",type="max"}', "Down", "A", instant=True),
-                                  tgt('100 * fritz_dsl_datarate_kbps{direction="tx",type="curr"} / ignoring(type) fritz_dsl_datarate_kbps{direction="tx",type="max"}', "Up", "B", instant=True)],
-           unit="percent", text_mode="value_and_name", color="text", decimals=0,
-           desc="Current sync rate as a share of the attainable rate. Well below 100 % means the tariff, not the line, limits the speed."), 12, 4, 4)
-place(stat("CRC errors, 24 h", [tgt("increase(fritz_dsl_crc_errors_count_total[24h])", instant=True)], decimals=0,
-           thresholds={"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "orange", "value": 100}, {"color": "red", "value": 1000}]},
-           desc="Uncorrectable errors (fritz_dsl_crc_errors_count_total). They cost retransmissions; a few are normal."), 16, 4, 4)
-place(stat("DSL interface enabled", [tgt("fritz_dsl_status_enabled", instant=True)], color_mode="background",
-           mappings=mapping((1, "Enabled", "green"), (0, "Disabled", "red"))), 20, 4, 4)
-Y[0] += 4
-place(ts("Sync rate history", [tgt('fritz_dsl_datarate_kbps{type="curr"} * 1000', "Current {{direction}}", "A"),
-                               tgt('fritz_dsl_datarate_kbps{type="max"} * 1000', "Attainable {{direction}}", "B")],
-         unit="bps", legend_calcs=["min", "max", "lastNotNull"],
-         desc="A change in the current rate means the line resynced.",
-         overrides=[color_ov("Current rx", DOWN), color_ov("Current tx", UP),
-                    limit_ov("Attainable rx", DOWN, dash=True), limit_ov("Attainable tx", UP, dash=True)]), 0, 12, 8)
-place(ts("DSL errors per minute", [tgt("rate(fritz_dsl_fec_errors_count_total[5m]) * 60", "FEC (corrected)", "A"),
-                                   tgt("rate(fritz_dsl_crc_errors_count_total[5m]) * 60", "CRC (uncorrectable)", "B")],
-         unit="short", legend_calcs=["mean", "max", "lastNotNull"],
-         desc="FEC errors are corrected and harmless in large numbers. CRC errors are lost data.",
-         overrides=[color_ov("FEC (corrected)", "yellow"), color_ov("CRC (uncorrectable)", "red")]), 12, 12, 8)
+# ---------------------------------------------------------------- Devices (fritz-extras)
+row("Devices")
+dev_desc = ("From the FRITZ!Box network list (Home Network → Network), read by fritz-extras every 5 min. "
+            "Names are the ones set in the FRITZ!Box. DEVICE_ALLOWLIST in fritz.env limits which devices are named.")
+# One row per device. Queries are reduced to the same key labels (name, mac) so "merge" joins them;
+# Wi-Fi band and signal (fritz_exporter, FRITZ_WIFI_CLIENT_INFO=true) stay empty for wired devices.
+place(table("Devices online now",
+            [tgt("max by (name, mac, interface, ip) (fritz_extras_host_info)", ref="A", instant=True, fmt="table"),
+             tgt("max by (name, mac) (fritz_extras_host_speed_mbps)", ref="B", instant=True, fmt="table"),
+             tgt(named("fritz_wifi_client_signal_strength"), ref="C", instant=True, fmt="table")],
+            {"excludeByName": {"Time": True, "Value #A": True},
+             "indexByName": {"name": 0, "interface": 1, "wifi_name": 2, "Value #C": 3, "Value #B": 4, "ip": 5, "mac": 6},
+             "renameByName": {"name": "Device", "interface": "Connection", "wifi_name": "Band", "Value #C": "Signal",
+                              "Value #B": "Link speed", "ip": "IP", "mac": "MAC"}},
+            overrides=[col("Link speed", [{"id": "unit", "value": "Mbits"}]),
+                       col("Signal", [{"id": "unit", "value": "percent"}, {"id": "min", "value": 0}, {"id": "max", "value": 100},
+                                      {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "basic", "valueDisplayMode": "text"}},
+                                      {"id": "color", "value": {"mode": "continuous-RdYlGr"}}]),
+                       col("Connection", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
+                                          {"id": "mappings", "value": mapping(("LAN", "LAN", "green"), ("Wi-Fi", "Wi-Fi", "blue"),
+                                                                              ("Powerline", "Powerline", "purple"), ("other", "other", "text"))}])],
+            sort=[{"displayName": "Device", "desc": False}],
+            desc=dev_desc + " Band and signal come from the FRITZ!Box Wi-Fi client list, matched by MAC; phones with private (random) MACs still match, as both sources see the same MAC."),
+      0, 24, 17)   # full width, tall enough for ~16 devices without scrolling (peak so far: 15)
+Y[0] += 17
+place(ts("Devices online by connection", [tgt("fritz_extras_hosts_online", "{{interface}}", "A")],
+         stack=True, fill=40, decimals=0, legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter", desc=dev_desc,
+         overrides=[color_ov("LAN", "green"), color_ov("Wi-Fi", "blue"), color_ov("Powerline", "purple"), color_ov("other", "text")]),
+      0, 24, 8)
 Y[0] += 8
-place(ts("Line attenuation", [tgt("fritz_dsl_attenuation_dB", "{{direction}}", "A")], unit="dB", legend_calcs=["min", "max", "lastNotNull"],
-         desc="Signal loss on the copper line. Lower is better; it depends on the distance to the street cabinet.",
-         overrides=[color_ov("rx", DOWN), color_ov("tx", UP)]), 0, 12, 7)
-place(ts("Noise margin (SNR)", [tgt("fritz_dsl_noise_margin_dB", "{{direction}}", "A")], unit="dB", legend_calcs=["min", "max", "lastNotNull"],
-         desc="Headroom against interference. Above ~6 dB is stable; drops point to interference or resyncs.",
-         overrides=[color_ov("rx", DOWN), color_ov("tx", UP)]), 12, 12, 7)
-Y[0] += 7
+timeline = {"type": "state-timeline", "title": "Device online history",
+            "description": dev_desc + " Green = online, grey = offline, empty = no data yet. Set the time range to 7 days to see daily patterns.",
+            "targets": [tgt("fritz_extras_host_active", "{{name}}", "A")],
+            "options": {"showValue": "never", "mergeValues": True, "alignValue": "left", "rowHeight": 0.8,
+                        "legend": {"showLegend": False}, "tooltip": {"mode": "single", "sort": "none"}},
+            "fieldConfig": {"defaults": {"custom": {"fillOpacity": 80, "lineWidth": 0},
+                                         # Colours via thresholds (mapping colours / "transparent" render all black here).
+                                         "mappings": [{"type": "value", "options": {"1": {"text": "Online", "index": 0},
+                                                                                    "0": {"text": "Offline", "index": 1}}}],
+                                         "color": {"mode": "thresholds"},
+                                         "thresholds": {"mode": "absolute", "steps": [{"color": "#3d3f45", "value": None},
+                                                                                      {"color": "green", "value": 1}]}},
+                            "overrides": []}}
+place(timeline, 0, 24, 18)
+Y[0] += 18
 
 # ---------------------------------------------------------------- Wi-Fi and mesh
 row("Wi-Fi and mesh")
@@ -226,14 +240,6 @@ place(ts("Wi-Fi clients per band", [tgt("fritz_wifi_associations_count", "{{wifi
          legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter",
          overrides=[color_ov("2.4GHz", "yellow"), color_ov("5GHz", "green"), color_ov("Guest", "purple")]), 10, 14, 6)
 Y[0] += 6
-# Wi-Fi client metrics only carry client_ip/client_mac. Join the device name from fritz-extras via the MAC;
-# clients fritz-extras doesn't name (e.g. DEVICE_ALLOWLIST) fall back to their IP. Labels: name, mac, wifi_name.
-def named(metric):
-    m = f'label_replace({metric}, "mac", "$1", "client_mac", "(.*)")'
-    joined = f'{m} * on (mac) group_left (name) max by (mac, name) (fritz_extras_host_info)'
-    fallback = f'label_replace({m}, "name", "$1", "client_ip", "(.*)")'
-    return f'max by (name, mac, wifi_name) (({joined}) or on (mac) {fallback})'
-
 wifi_client_desc = "Device names come from fritz-extras, matched by MAC (IP if no name is known). The per-device table is under Devices."
 place(ts("Client signal strength", [tgt(named("fritz_wifi_client_signal_strength"), "{{name}} ({{wifi_name}})", "A")], unit="percent",
          minv=0, maxv=100, legend_calcs=["min", "mean", "lastNotNull"], desc=wifi_client_desc), 0, 12, 9)
@@ -287,6 +293,46 @@ place(ts("Mesh link rate history", [tgt(HOP_NOW, "{{hop}}. {{link}} {{direction}
                     {"matcher": {"id": "byRegexp", "options": "direct LAN port .* (tx|max)"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": ATTAIN}}]}, max_ov]),
       6, 18, 9)
 Y[0] += 9
+
+# ---------------------------------------------------------------- DSL line
+row("DSL line")
+place(stat("Sync rate (current)", [tgt('fritz_dsl_datarate_kbps{direction="rx",type="curr"} * 1000', "Down", "A", instant=True),
+                                   tgt('fritz_dsl_datarate_kbps{direction="tx",type="curr"} * 1000', "Up", "B", instant=True)],
+           unit="bps", text_mode="value_and_name", color=LIMIT, decimals=1,
+           desc="fritz_dsl_datarate_kbps{type=\"curr\"}: what the line is synced at (your tariff profile). The real ceiling."), 0, 6, 4)
+place(stat("Attainable rate", [tgt('fritz_dsl_datarate_kbps{direction="rx",type="max"} * 1000', "Down", "A", instant=True),
+                               tgt('fritz_dsl_datarate_kbps{direction="tx",type="max"} * 1000', "Up", "B", instant=True)],
+           unit="bps", text_mode="value_and_name", color="text", decimals=1,
+           desc="fritz_dsl_datarate_kbps{type=\"max\"} (same as fritz_wan_max_bitrate_bps): what the line could carry."), 6, 6, 4)
+place(stat("Line capacity used", [tgt('100 * fritz_dsl_datarate_kbps{direction="rx",type="curr"} / ignoring(type) fritz_dsl_datarate_kbps{direction="rx",type="max"}', "Down", "A", instant=True),
+                                  tgt('100 * fritz_dsl_datarate_kbps{direction="tx",type="curr"} / ignoring(type) fritz_dsl_datarate_kbps{direction="tx",type="max"}', "Up", "B", instant=True)],
+           unit="percent", text_mode="value_and_name", color="text", decimals=0,
+           desc="Current sync rate as a share of the attainable rate. Well below 100 % means the tariff, not the line, limits the speed."), 12, 4, 4)
+place(stat("CRC errors, 24 h", [tgt("increase(fritz_dsl_crc_errors_count_total[24h])", instant=True)], decimals=0,
+           thresholds={"mode": "absolute", "steps": [{"color": "green", "value": None}, {"color": "orange", "value": 100}, {"color": "red", "value": 1000}]},
+           desc="Uncorrectable errors (fritz_dsl_crc_errors_count_total). They cost retransmissions; a few are normal."), 16, 4, 4)
+place(stat("DSL interface enabled", [tgt("fritz_dsl_status_enabled", instant=True)], color_mode="background",
+           mappings=mapping((1, "Enabled", "green"), (0, "Disabled", "red"))), 20, 4, 4)
+Y[0] += 4
+place(ts("Sync rate history", [tgt('fritz_dsl_datarate_kbps{type="curr"} * 1000', "Current {{direction}}", "A"),
+                               tgt('fritz_dsl_datarate_kbps{type="max"} * 1000', "Attainable {{direction}}", "B")],
+         unit="bps", legend_calcs=["min", "max", "lastNotNull"],
+         desc="A change in the current rate means the line resynced.",
+         overrides=[color_ov("Current rx", DOWN), color_ov("Current tx", UP),
+                    limit_ov("Attainable rx", DOWN, dash=True), limit_ov("Attainable tx", UP, dash=True)]), 0, 12, 8)
+place(ts("DSL errors per minute", [tgt("rate(fritz_dsl_fec_errors_count_total[5m]) * 60", "FEC (corrected)", "A"),
+                                   tgt("rate(fritz_dsl_crc_errors_count_total[5m]) * 60", "CRC (uncorrectable)", "B")],
+         unit="short", legend_calcs=["mean", "max", "lastNotNull"],
+         desc="FEC errors are corrected and harmless in large numbers. CRC errors are lost data.",
+         overrides=[color_ov("FEC (corrected)", "yellow"), color_ov("CRC (uncorrectable)", "red")]), 12, 12, 8)
+Y[0] += 8
+place(ts("Line attenuation", [tgt("fritz_dsl_attenuation_dB", "{{direction}}", "A")], unit="dB", legend_calcs=["min", "max", "lastNotNull"],
+         desc="Signal loss on the copper line. Lower is better; it depends on the distance to the street cabinet.",
+         overrides=[color_ov("rx", DOWN), color_ov("tx", UP)]), 0, 12, 7)
+place(ts("Noise margin (SNR)", [tgt("fritz_dsl_noise_margin_dB", "{{direction}}", "A")], unit="dB", legend_calcs=["min", "max", "lastNotNull"],
+         desc="Headroom against interference. Above ~6 dB is stable; drops point to interference or resyncs.",
+         overrides=[color_ov("rx", DOWN), color_ov("tx", UP)]), 12, 12, 7)
+Y[0] += 7
 
 # ---------------------------------------------------------------- Connections and provider
 row("Connections and provider")
@@ -358,52 +404,6 @@ place(ts("Energy use per component", [tgt("fritz_extras_energy_percent", "{{comp
          desc="Current energy use of each part, in percent of that part's maximum (the FRITZ!Box shows no watts). "
               "From the web UI page System → Energy Monitor."), 18, 6, 8)
 Y[0] += 8
-
-# ---------------------------------------------------------------- Devices (fritz-extras)
-row("Devices")
-dev_desc = ("From the FRITZ!Box network list (Home Network → Network), read by fritz-extras every 5 min. "
-            "Names are the ones set in the FRITZ!Box. DEVICE_ALLOWLIST in fritz.env limits which devices are named.")
-# One row per device. Queries are reduced to the same key labels (name, mac) so "merge" joins them;
-# Wi-Fi band and signal (fritz_exporter, FRITZ_WIFI_CLIENT_INFO=true) stay empty for wired devices.
-place(table("Devices online now",
-            [tgt("max by (name, mac, interface, ip) (fritz_extras_host_info)", ref="A", instant=True, fmt="table"),
-             tgt("max by (name, mac) (fritz_extras_host_speed_mbps)", ref="B", instant=True, fmt="table"),
-             tgt(named("fritz_wifi_client_signal_strength"), ref="C", instant=True, fmt="table")],
-            {"excludeByName": {"Time": True, "Value #A": True},
-             "indexByName": {"name": 0, "interface": 1, "wifi_name": 2, "Value #C": 3, "Value #B": 4, "ip": 5, "mac": 6},
-             "renameByName": {"name": "Device", "interface": "Connection", "wifi_name": "Band", "Value #C": "Signal",
-                              "Value #B": "Link speed", "ip": "IP", "mac": "MAC"}},
-            overrides=[col("Link speed", [{"id": "unit", "value": "Mbits"}]),
-                       col("Signal", [{"id": "unit", "value": "percent"}, {"id": "min", "value": 0}, {"id": "max", "value": 100},
-                                      {"id": "custom.cellOptions", "value": {"type": "gauge", "mode": "basic", "valueDisplayMode": "text"}},
-                                      {"id": "color", "value": {"mode": "continuous-RdYlGr"}}]),
-                       col("Connection", [{"id": "custom.cellOptions", "value": {"type": "color-text"}},
-                                          {"id": "mappings", "value": mapping(("LAN", "LAN", "green"), ("Wi-Fi", "Wi-Fi", "blue"),
-                                                                              ("Powerline", "Powerline", "purple"), ("other", "other", "text"))}])],
-            sort=[{"displayName": "Device", "desc": False}],
-            desc=dev_desc + " Band and signal come from the FRITZ!Box Wi-Fi client list, matched by MAC; phones with private (random) MACs still match, as both sources see the same MAC."),
-      0, 24, 17)   # full width, tall enough for ~16 devices without scrolling (peak so far: 15)
-Y[0] += 17
-place(ts("Devices online by connection", [tgt("fritz_extras_hosts_online", "{{interface}}", "A")],
-         stack=True, fill=40, decimals=0, legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter", desc=dev_desc,
-         overrides=[color_ov("LAN", "green"), color_ov("Wi-Fi", "blue"), color_ov("Powerline", "purple"), color_ov("other", "text")]),
-      0, 24, 8)
-Y[0] += 8
-timeline = {"type": "state-timeline", "title": "Device online history",
-            "description": dev_desc + " Green = online, grey = offline, empty = no data yet. Set the time range to 7 days to see daily patterns.",
-            "targets": [tgt("fritz_extras_host_active", "{{name}}", "A")],
-            "options": {"showValue": "never", "mergeValues": True, "alignValue": "left", "rowHeight": 0.8,
-                        "legend": {"showLegend": False}, "tooltip": {"mode": "single", "sort": "none"}},
-            "fieldConfig": {"defaults": {"custom": {"fillOpacity": 80, "lineWidth": 0},
-                                         # Colours via thresholds (mapping colours / "transparent" render all black here).
-                                         "mappings": [{"type": "value", "options": {"1": {"text": "Online", "index": 0},
-                                                                                    "0": {"text": "Offline", "index": 1}}}],
-                                         "color": {"mode": "thresholds"},
-                                         "thresholds": {"mode": "absolute", "steps": [{"color": "#3d3f45", "value": None},
-                                                                                      {"color": "green", "value": 1}]}},
-                            "overrides": []}}
-place(timeline, 0, 24, 18)
-Y[0] += 18
 
 # ---------------------------------------------------------------- LAN and exporter
 row("LAN and exporter")
