@@ -173,8 +173,8 @@ compare = ts("Traffic compared: last 24 h, yesterday, a week ago",
                         color_ov("Same time a week ago", "text", [{"id": "custom.lineStyle", "value": {"fill": "dash", "dash": [10, 10]}}])])
 compare["timeFrom"] = "24h"
 compare["options"]["legend"]["calcs"] = ["sum", "max"]
-place(compare, 0, 24, 8)
-Y[0] += 8
+place(compare, 0, 24, 10)   # tall enough for the 3-row legend
+Y[0] += 10
 
 # ---------------------------------------------------------------- Devices (fritz-extras)
 row("Devices")
@@ -235,10 +235,11 @@ place(table("Wi-Fi networks",
             overrides=[col("Status", [{"id": "mappings", "value": mapping((1, "On", "green"), (0, "Off", "text"))},
                                       {"id": "custom.cellOptions", "value": {"type": "color-text"}}]),
                        col("Enabled", [{"id": "mappings", "value": mapping(("1", "Yes", "text"), ("0", "No", "text"))}])],
-            desc="fritz_wifi_status, fritz_wifi_channel, fritz_wifi_associations_count per band."), 0, 10, 6)
+            desc="fritz_wifi_status, fritz_wifi_channel, fritz_wifi_associations_count per band."), 0, 24, 6)   # own row, no scrolling
+Y[0] += 6
 place(ts("Wi-Fi clients per band", [tgt("fritz_wifi_associations_count", "{{wifi_name}}", "A")], unit="short", decimals=0,
          legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter",
-         overrides=[color_ov("2.4GHz", "yellow"), color_ov("5GHz", "green"), color_ov("Guest", "purple")]), 10, 14, 6)
+         overrides=[color_ov("2.4GHz", "yellow"), color_ov("5GHz", "green"), color_ov("Guest", "purple")]), 0, 24, 6)
 Y[0] += 6
 wifi_client_desc = "Device names come from fritz-extras, matched by MAC (IP if no name is known). The per-device table is under Devices."
 place(ts("Client signal strength", [tgt(named("fritz_wifi_client_signal_strength"), "{{name}} ({{wifi_name}})", "A")], unit="percent",
