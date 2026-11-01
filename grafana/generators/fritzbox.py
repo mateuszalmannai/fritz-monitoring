@@ -244,8 +244,8 @@ place(table("Wi-Fi networks",
 Y[0] += 6
 place(ts("Wi-Fi clients per band", [tgt("fritz_wifi_associations_count", "{{wifi_name}}", "A")], unit="short", decimals=0,
          legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter",
-         overrides=[color_ov("2.4GHz", "yellow"), color_ov("5GHz", "green"), color_ov("Guest", "purple")]), 0, 24, 6)
-Y[0] += 6
+         overrides=[color_ov("2.4GHz", "yellow"), color_ov("5GHz", "green"), color_ov("Guest", "purple")]), 0, 24, 10)   # tall enough for the 3-row legend
+Y[0] += 10
 wifi_client_desc = "Device names come from fritz-extras, matched by MAC (IP if no name is known). The per-device table is under Devices."
 place(ts("Client signal strength", [tgt(named("fritz_wifi_client_signal_strength"), "{{name}} ({{wifi_name}})", "A")], unit="percent",
          minv=0, maxv=100, legend_calcs=["min", "mean", "lastNotNull"], desc=wifi_client_desc), 0, 12, 9)
