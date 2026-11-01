@@ -16,6 +16,10 @@ A Docker Compose stack on a Raspberry Pi that:
 
 All data lives on the Pi's USB SSD.
 
+<a href="docs/fritzbox-dashboard.png"><img src="docs/fritzbox-dashboard.png" width="800" alt="FRITZ!Box dashboard in Grafana: status, internet traffic and devices online"></a>
+
+*Top of the FRITZ!Box dashboard (click to enlarge). Device names, IPs and MAC addresses are replaced with placeholders.*
+
 ## Architecture
 
 ```mermaid
