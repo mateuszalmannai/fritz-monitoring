@@ -209,8 +209,8 @@ Y[0] += 17
 place(ts("Devices online by connection", [tgt("fritz_extras_hosts_online", "{{interface}}", "A")],
          stack=True, fill=40, decimals=0, legend_calcs=["min", "max", "lastNotNull"], interp="stepAfter", desc=dev_desc,
          overrides=[color_ov("LAN", "green"), color_ov("Wi-Fi", "blue"), color_ov("Powerline", "purple"), color_ov("other", "text")]),
-      0, 24, 10)   # tall enough for the 4-row legend
-Y[0] += 10
+      0, 24, 12)   # tall enough for the 4-row legend
+Y[0] += 12
 timeline = {"type": "state-timeline", "title": "Device online history",
             "description": dev_desc + " Green = online, grey = offline, empty = no data yet. Set the time range to 7 days to see daily patterns.",
             "targets": [tgt("fritz_extras_host_active", "{{name}}", "A")],
