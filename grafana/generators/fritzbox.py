@@ -305,19 +305,19 @@ place(table("WAN connections",
 Y[0] += 9
 # Stat panels size their text to fit the panel, so the long strings get wide, tall panels.
 place(stat("IPv6 prefix", [tgt("fritz_wan_ipv6_prefix_info", "{{prefix}}/{{prefix_length}}", instant=True)], text_mode="name", color="text",
-           desc="Delegated IPv6 prefix from the provider (fritz_wan_ipv6_prefix_info)."), 0, 12, 4)
+           desc="Delegated IPv6 prefix from the provider (fritz_wan_ipv6_prefix_info)."), 0, 12, 3)
 place(stat("Provider management server (TR-069)", [tgt("fritz_tr069_acs_info", "{{acs_host}}", instant=True)], text_mode="name", color="text",
-           desc="The provider's auto-configuration server the FRITZ!Box reports to (fritz_tr069_acs_info)."), 12, 12, 4)
-Y[0] += 4
+           desc="The provider's auto-configuration server the FRITZ!Box reports to (fritz_tr069_acs_info)."), 12, 12, 3)
+Y[0] += 3
 place(stat("Remote management", [tgt("fritz_tr069_periodic_inform_enabled", "Periodic inform", "A", instant=True),
                                  tgt("fritz_tr069_upgrades_managed", "Provider manages firmware", "B", instant=True),
                                  tgt("fritz_usp_controller_enabled", "USP controller", "C", instant=True),
                                  tgt("fritz_usp_myfritz_enabled", "MyFRITZ! USP", "D", instant=True)],
            text_mode="value_and_name", mappings=YESNO, orient="vertical",   # the four values side by side
-           desc="TR-069 and USP: whether the provider or MyFRITZ! can manage the box remotely."), 0, 18, 5)
+           desc="TR-069 and USP: whether the provider or MyFRITZ! can manage the box remotely."), 0, 18, 4)
 place(stat("Inform interval", [tgt("fritz_tr069_periodic_inform_interval_seconds", instant=True)], unit="dtdurations", color="text",
-           desc="How often the FRITZ!Box contacts the provider's TR-069 server."), 18, 6, 5)
-Y[0] += 5
+           desc="How often the FRITZ!Box contacts the provider's TR-069 server."), 18, 6, 4)
+Y[0] += 4
 
 # ---------------------------------------------------------------- System (fritz-extras)
 row("FRITZ!Box system")
