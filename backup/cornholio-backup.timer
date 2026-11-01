@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly restic backup of the fritz-monitoring stack
+
+[Timer]
+OnCalendar=*-*-* 03:30
+RandomizedDelaySec=10min
+# Catch up on a missed run (Pi was off at 03:30) after the next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

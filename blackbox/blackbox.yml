@@ -1,0 +1,28 @@
+# Probe modules for blackbox_exporter. Targets are set in prometheus/prometheus.yml.
+modules:
+  # Ping: latency and packet loss.
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+
+  # DNS lookup of example.com against the target server (Pi-hole or FRITZ!Box).
+  dns_example:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: example.com
+      query_type: A
+      transport_protocol: udp
+      preferred_ip_protocol: ip4
+      valid_rcodes: [NOERROR]
+
+  # HTTPS reachability and response time.
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+      valid_status_codes: []   # default: any 2xx

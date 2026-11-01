@@ -1,0 +1,16 @@
+# Push notifications via ntfy.sh. Subscribe to the topic in the ntfy app.
+# NTFY_TOPIC comes from grafana.env; the topic name acts as the password.
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: ntfy
+    receivers:
+      - uid: ntfy
+        type: webhook
+        settings:
+          # template=grafana: ntfy turns Grafana's JSON into title + message.
+          url: https://ntfy.sh/${NTFY_TOPIC}?template=grafana
+          httpMethod: POST
+          message: |
+            {{ range .Alerts }}{{ if eq .Status "resolved" }}✅ resolved: {{ else }}🔥 {{ end }}{{ .Annotations.summary }}
+            {{ end }}

@@ -1,0 +1,9 @@
+# Send every alert to ntfy. Repeats every 4h while an alert keeps firing.
+apiVersion: 1
+policies:
+  - orgId: 1
+    receiver: ntfy
+    group_by: [grafana_folder, alertname]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

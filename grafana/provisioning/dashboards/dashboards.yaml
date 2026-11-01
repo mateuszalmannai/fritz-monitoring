@@ -1,0 +1,11 @@
+# Dashboards from files in json/. Edit the JSON here, not in the Grafana UI: changes made in the UI
+# can't be saved over a provisioned dashboard (use "Save as" for a personal copy).
+apiVersion: 1
+providers:
+  - name: cornholio
+    folder: cornholio
+    type: file
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

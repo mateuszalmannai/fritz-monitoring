@@ -1,0 +1,11 @@
+[Unit]
+Description=restic backup of the fritz-monitoring stack to the Synology
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/fritz-monitoring/backup/backup.sh
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,9 @@
+# Secrets: real env files exist only on the Pi (copy from *.env.example)
+*.env
+!*.env.example
+
+# Local / generated
+__pycache__/
+*.pyc
+.DS_Store
+.claude/settings.local.json

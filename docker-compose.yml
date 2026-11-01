@@ -1,0 +1,258 @@
+# FRITZ!Box monitoring: fritz_exporter -> Prometheus -> Grafana
+# Runs on a Raspberry Pi (64-bit OS recommended) or any Docker host.
+# Before starting: copy fritz.env.example to fritz.env and fill it in,
+# then run: docker compose up -d
+
+# Rotate container logs so they don't grow forever.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  fritz-exporter:
+    image: pdreker/fritz_exporter:3
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    container_name: fritz-exporter
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: fritz.env
+    environment:
+      # v3 listens on 127.0.0.1 by default, which is unreachable from
+      # other containers. 0.0.0.0 is needed inside Docker.
+      FRITZ_LISTEN_ADDRESS: "0.0.0.0"
+    # No published port: only Prometheus needs it, on the internal network.
+
+  # Values fritz_exporter lacks: online devices by name, CPU temperature/load, RAM, energy use.
+  # A small script of our own (fritz-extras/fritz_extras.py, Python standard library only).
+  fritz-extras:
+    image: python:3.13-alpine
+    labels:
+      # Not an app with releases: only report new builds of the 3.13-alpine tag itself.
+      diun.watch_repo: "false"
+    container_name: fritz-extras
+    restart: unless-stopped
+    logging: *default-logging
+    user: "65534:65534"
+    env_file: fritz.env   # FRITZ_HOSTNAME, FRITZ_USERNAME, FRITZ_PASSWORD, optional DEVICE_ALLOWLIST
+    environment:
+      FRITZ_EXTRAS_HOSTS_INTERVAL: "300"    # devices: every 5 min
+      FRITZ_EXTRAS_SYSTEM_INTERVAL: "120"   # CPU/RAM/energy: every 2 min
+      FRITZ_EXTRAS_MESH_INTERVAL: "120"     # mesh backhaul path: every 2 min
+      PYTHONDONTWRITEBYTECODE: "1"
+    command: ["python", "-u", "/app/fritz_extras.py"]
+    volumes:
+      - ./fritz-extras/fritz_extras.py:/app/fritz_extras.py:ro
+    # No published port: only Prometheus needs it.
+
+  prometheus:
+    image: prom/prometheus:v3
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^v\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    container_name: prometheus
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=365d   # keep one year
+      - --storage.tsdb.retention.size=5GB    # hard cap, whichever hits first
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    # No published port. Uncomment to reach the Prometheus UI for debugging:
+    # ports:
+    #   - "9090:9090"
+    extra_hosts:
+      # node-exporter runs in the host network; reach it via docker0 (172.17.0.1).
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - fritz-exporter
+      - fritz-extras
+      - blackbox-exporter
+
+  # Health of the Pi itself: CPU, temperature, RAM, SSD, network.
+  node-exporter:
+    image: prom/node-exporter:v1
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^v\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    container_name: node-exporter
+    restart: unless-stopped
+    logging: *default-logging
+    # Host network + PID namespace, so it sees eth0 and all processes,
+    # not just the container's own.
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      # Only reachable from the host/containers (docker0), not from the LAN.
+      - --web.listen-address=172.17.0.1:9100
+      # *.prom files written by backup/backup.sh (last successful backup).
+      - --collector.textfile.directory=/host/var/lib/node_exporter/textfile
+    volumes:
+      - /:/host:ro,rslave
+
+  # Probes from inside the LAN: ping, DNS through Pi-hole, HTTP.
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.29.0
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^v\d+\.\d+\.\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    container_name: blackbox-exporter
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    # No published port: only Prometheus needs it.
+
+  grafana:
+    image: grafana/grafana:13.1
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^\d+\.\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    container_name: grafana
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: grafana.env   # NTFY_TOPIC for alert notifications
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: change-me-on-first-login
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  pihole:
+    image: pihole/pihole:2026.09.0
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^\d{4}\.\d{2}\.\d+$$'
+      # Date tags with leading zeros (2026.09.0) aren't valid semver; plain text order works.
+      diun.sort_tags: reverse
+      diun.max_tags: "5"
+    container_name: pihole
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: pihole.env   # web interface password
+    environment:
+      TZ: Europe/Berlin
+      # Answer queries from the whole LAN, not just the Docker network.
+      FTLCONF_dns_listeningMode: "ALL"
+      # Forward to the FRITZ!Box, which keeps its own upstream/DoT settings
+      # and resolves local names (*.fritz.box).
+      FTLCONF_dns_upstreams: "192.168.178.1"
+      # Ask the FRITZ!Box for client names, so the query log shows hostnames.
+      FTLCONF_dns_revServers: "true,192.168.178.0/24,192.168.178.1,fritz.box"
+      # The Pi syncs its own clock; Pi-hole's NTP client/server isn't needed.
+      FTLCONF_ntp_sync_active: "false"
+      FTLCONF_ntp_ipv4_active: "false"
+      FTLCONF_ntp_ipv6_active: "false"
+    volumes:
+      - pihole-data:/etc/pihole
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8080:80/tcp"   # web interface: http://<pi-ip>:8080/admin
+
+  # Pi-hole statistics (queries, blocked, top clients) for Prometheus.
+  pihole-exporter:
+    image: ekofr/pihole-exporter:v1.2.0
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^v\d+\.\d+\.\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    container_name: pihole-exporter
+    restart: unless-stopped
+    logging: *default-logging
+    env_file: pihole-exporter.env   # PIHOLE_PASSWORD = Pi-hole app password
+    environment:
+      PIHOLE_HOSTNAME: pihole
+      PIHOLE_PROTOCOL: http
+      PIHOLE_PORT: "80"
+      PORT: "9617"
+    depends_on:
+      - pihole
+    # No published port: only Prometheus needs it.
+
+  # Internet speed test (Ookla). Every scrape runs one test, so Prometheus scrapes it only every 8 h.
+  speedtest-exporter:
+    image: miguelndecarvalho/speedtest-exporter:v3.5.4
+    container_name: speedtest-exporter
+    restart: unless-stopped
+    logging: *default-logging
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^v\d+\.\d+\.\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    environment:
+      SPEEDTEST_PORT: "9798"
+      SPEEDTEST_TIMEOUT: "90"
+    # The image's own check asks localhost, which resolves to ::1, but the exporter listens on IPv4 only.
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://127.0.0.1:9798/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+    # No published port: only Prometheus needs it.
+
+  # Weekly check for new image versions, pushed to the ntfy app. Never updates anything:
+  # images stay pinned, you change tags / pull yourself. Moving tags (:3, :v1, :v3, :4) report a
+  # new digest; the diun.include_tags labels above report new tags (e.g. a new Pi-hole release).
+  diun:
+    image: crazymax/diun:4
+    container_name: diun
+    restart: unless-stopped
+    logging: *default-logging
+    labels:
+      diun.watch_repo: "true"
+      diun.include_tags: '^\d+$$'
+      diun.sort_tags: semver
+      diun.max_tags: "5"
+    env_file: grafana.env   # NTFY_TOPIC, shared with the Grafana alerts
+    # Diun reads the topic from DIUN_NOTIF_NTFY_TOPIC; reuse the one from grafana.env.
+    entrypoint: ["/bin/sh", "-c", "DIUN_NOTIF_NTFY_TOPIC=\"$$NTFY_TOPIC\" exec diun serve"]
+    environment:
+      TZ: Europe/Berlin
+      LOG_LEVEL: info
+      DIUN_WATCH_SCHEDULE: "0 9 * * 1"     # Mondays 09:00
+      DIUN_WATCH_JITTER: 30s
+      DIUN_WATCH_FIRSTCHECKNOTIF: "false"  # first run only indexes, no flood of messages
+      DIUN_PROVIDERS_DOCKER: "true"
+      DIUN_PROVIDERS_DOCKER_WATCHBYDEFAULT: "true"
+      DIUN_NOTIF_NTFY_ENDPOINT: https://ntfy.sh
+      DIUN_NOTIF_NTFY_PRIORITY: "2"        # low
+      DIUN_NOTIF_NTFY_TAGS: package
+    volumes:
+      - diun-data:/data
+      # Read access to Docker to list containers/images (effectively full Docker API access).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+# Docker-managed volumes (stored under Docker's data-root, see README)
+# avoid folder-permission problems (Grafana = UID 472, Prometheus = 65534).
+volumes:
+  prometheus-data:
+  grafana-data:
+  pihole-data:
+  diun-data:

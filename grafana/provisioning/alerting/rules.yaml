@@ -1,0 +1,190 @@
+# Alert rules, evaluated by Grafana every minute.
+# Each rule: query A (Prometheus, instant) -> threshold C. One alert per series.
+# Avoid "$" in templates (Grafana expands $VARS from the environment here, and "$$" is not unescaped in
+# annotations): use .Values.A.Value and .Labels.job instead of $values / $labels.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: cornholio
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: pi-temperature-high
+        title: Pi temperature high
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Pi CPU at {{ printf "%.0f" .Values.A.Value }} °C (limit 75 °C)'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: max(node_thermal_zone_temp)
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [75] }
+
+      - uid: ssd-usage-high
+        title: SSD almost full
+        condition: C
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'SSD {{ printf "%.0f" .Values.A.Value }} % full (limit 80 %)'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+
+      # Both internet ping targets fail. The notification goes out via the
+      # internet too, so it arrives once the connection is back.
+      - uid: internet-down
+        title: Internet down
+        condition: C
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: Internet unreachable (no ping to 1.1.1.1 and 9.9.9.9)
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: max(probe_success{job="blackbox-icmp", instance=~"1\\.1\\.1\\.1|9\\.9\\.9\\.9"})
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: fritzbox-unreachable
+        title: FRITZ!Box unreachable
+        condition: C
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: FRITZ!Box (192.168.178.1) doesn't answer ping
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: probe_success{job="blackbox-icmp", instance="192.168.178.1"}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      - uid: pihole-dns-down
+        title: Pi-hole DNS not answering
+        condition: C
+        for: 3m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: Pi-hole doesn't answer DNS queries; the LAN has no name resolution
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: probe_success{job="blackbox-dns", instance="pihole:53"}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+
+      # No successful restic backup for 36 h (backup/backup.sh writes the timestamp).
+      # NoData fires too: a missing metric means the backup never ran or the file was lost.
+      - uid: backup-stale
+        title: Backup overdue
+        condition: C
+        for: 0s
+        noDataState: Alerting
+        execErrState: Error
+        annotations:
+          summary: 'Last successful backup {{ printf "%.0f" .Values.A.Value }} h ago (check: journalctl -u cornholio-backup)'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: (time() - cornholio_backup_last_success_timestamp_seconds) / 3600
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [36] }
+
+      # An exporter (FRITZ!Box, node, blackbox) can't be scraped.
+      - uid: scrape-target-down
+        title: Monitoring target down
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: 'Prometheus can''t scrape {{ .Labels.job }} ({{ .Labels.instance }})'
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: up
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
