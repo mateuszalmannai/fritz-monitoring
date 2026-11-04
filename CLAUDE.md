@@ -31,6 +31,7 @@ Claude Code usually runs on the Mac in `~/scripts/fritz-monitoring` and reaches 
 - `README.md`: manual setup steps for humans (keep it in sync when changing the stack)
 - `ROADMAP.md`: extensions, done / decided against
 - `FRITZ-METRICS.md`: metrics with values on this FRITZ!Box, pitfalls (rx/tx, curr vs. max sync rate), translation of other exporters' metric names. Never add label values like IPs, Wi-Fi names or the serial.
+- `BREAK-GLASS.md`: switching the LAN's DNS back to the FRITZ!Box when the Pi is down, and back again
 - `REINSTALL-PI.md`: reinstalling the Pi OS on the SSD, SSH access, bootloader recovery
 - `.claude/commands/setup.md`: the `/setup` command
 

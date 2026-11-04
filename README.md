@@ -136,6 +136,7 @@ flowchart TB
 | `*.env.example` | Templates for the secret env files (see below) |
 | `ROADMAP.md` | Planned extensions, ticked off as they're done |
 | `FRITZ-METRICS.md` | What the FRITZ!Box exporter delivers, and how other dashboards' metrics map to it |
+| `BREAK-GLASS.md` | Switching the LAN's DNS to the FRITZ!Box when the Pi is down, and back |
 | `REINSTALL-PI.md` | How the Pi was reinstalled (OS on the USB SSD, bootloader recovery) |
 | `CLAUDE.md` | Context and rules for Claude Code |
 
@@ -262,6 +263,8 @@ IPv4 Settings → Local DNS server** = the Pi's IP.
   and Safari is filtered too. Private Relay stays active on other networks.
 - If you enable IPv6 in the LAN, also set the local DNS server under IPv6 Settings, otherwise devices
   can bypass Pi-hole over IPv6.
+- **If the Pi is down, the whole LAN loses DNS** (the FRITZ!Box offers only one local DNS server).
+  Follow `BREAK-GLASS.md` to point clients back to the FRITZ!Box.
 
 ### Speed test
 **How it works:** `speedtest-exporter` wraps Ookla's official Speedtest CLI. It has no schedule of its
@@ -605,6 +608,7 @@ and reinstall the timer (setup step 4).
 | Prometheus target `fritz-exporter` down, exporter fine | `FRITZ_LISTEN_ADDRESS` must be `0.0.0.0` (set in compose; v3 defaults to 127.0.0.1) |
 | fritz-extras: `fritz_extras_up` 0 / panels empty | `docker compose logs fritz-extras`. "web UI login failed": wrong password or the user lacks the "FRITZ!Box Settings" permission. `data.lua page ... returned no data` after a FRITZ!OS update: AVM changed the web UI pages; the device list keeps working |
 | Scrape timeouts on the FRITZ!Box | `FRITZ_HOST_INFO=true` is slow; raise `scrape_timeout` to ~45s or turn it off |
+| No website loads, but Wi-Fi and the line are up | The Pi / Pi-hole is down: follow `BREAK-GLASS.md` |
 | Ads still show on a device | It still has the old DNS server (renew the lease), uses Private DNS / DoH, or queries over IPv6 |
 | Prometheus target `pihole` down | `docker compose logs pihole-exporter`; usually a wrong/revoked app password in `pihole-exporter.env` → create a new one, then `docker compose up -d pihole-exporter` |
 | Speedtest panels empty / target `speedtest` "unknown" | Normal for up to 8 h after a Prometheus restart (the next test waits for its fixed time slot). Run a test now: `docker compose exec prometheus wget -T 120 -qO- http://speedtest-exporter:9798/metrics \| grep ^speedtest_` (uses ~250 MB of bandwidth) |
