@@ -14,9 +14,7 @@ fritz-dns check       # diagnosis + what to do next (steps 1 and 4)
 fritz-dns open        # opens the FRITZ!Box UI by IP, prints the menu path (step 2)
 fritz-dns mac-fritz   # only this Mac uses the FRITZ!Box DNS (sudo); undo: mac-reset
 ```
-The script is `break-glass/fritz-dns` in this repo. It's on `PATH` through a relative symlink in the
-notes repo (`~/markdown/scripts/bin/fritz-dns`), which works on any Mac that has this repo cloned at
-`~/scripts/fritz-monitoring`.
+The script is `break-glass/fritz-dns` in this repo. It's on `PATH` through a relative symlink in `~/bin`, which isn't synced, so create it once on each Mac (with this repo cloned at `~/scripts/fritz-monitoring`): `ln -s ../scripts/fritz-monitoring/break-glass/fritz-dns ~/bin/fritz-dns`.
 It can't make the switch itself: FRITZ!OS 8.25 has no TR-064 action to set the LAN's DNS server, only
 one to read it, and scripting the web UI would break on firmware updates. So step 2 stays manual.
 
