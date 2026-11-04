@@ -32,7 +32,7 @@ Claude Code usually runs on the Mac in `~/scripts/fritz-monitoring` and reaches 
 - `ROADMAP.md`: extensions, done / decided against
 - `FRITZ-METRICS.md`: metrics with values on this FRITZ!Box, pitfalls (rx/tx, curr vs. max sync rate), translation of other exporters' metric names. Never add label values like IPs, Wi-Fi names or the serial.
 - `BREAK-GLASS.md`: switching the LAN's DNS back to the FRITZ!Box when the Pi is down, and back again
-- `break-glass/fritz-dns`: Mac-side helper for it (Python stdlib; `check`, `open`, `mac-fritz`, `mac-reset`). FRITZ!OS 8.25 has no TR-064 setter for the LAN DNS server (only `GetDNSServers`), so the switch itself stays manual in the web UI.
+- `break-glass/fritz-dns`: Mac-side helper for it (Python stdlib; `check`, `open`, `mac-fritz`, `mac-reset`). FRITZ!OS 8.25 has no TR-064 setter for the LAN DNS server (only `GetDNSServers`), so the switch itself stays manual in the web UI. On `PATH` as `fritz-dns` via a relative symlink in `~/markdown/scripts/bin`: renaming or moving the script breaks it.
 - `REINSTALL-PI.md`: reinstalling the Pi OS on the SSD, SSH access, bootloader recovery
 - `.claude/commands/setup.md`: the `/setup` command
 

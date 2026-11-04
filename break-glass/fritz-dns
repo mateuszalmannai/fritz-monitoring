@@ -28,6 +28,7 @@ import urllib.request
 FRITZ = os.environ.get("FRITZ_HOST", "192.168.178.1")
 PI = os.environ.get("PI_HOST", "192.168.178.27")
 KEYCHAIN_SERVICE = "fritzbox-tr064"
+PROG = os.path.basename(sys.argv[0])  # short name in hints; the script is usually on PATH via a symlink
 TEST_NAME = "example.com"
 MENU_PATH = ("Home Network → Network → Network Settings → IPv4 Settings → Local DNS server\n"
              "  (Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Einstellungen → Lokaler DNS-Server)")
@@ -153,7 +154,7 @@ def check():
     handed = None
     creds = credentials()
     if creds is None:
-        print(f"{SKIP} DNS server the FRITZ!Box hands out: no login (see `{sys.argv[0]} -h`)")
+        print(f"{SKIP} DNS server the FRITZ!Box hands out: no login (see `{PROG} -h`)")
     else:
         try:
             handed = handed_out_dns(*creds)
@@ -174,11 +175,11 @@ def check():
     elif pi_dns:
         if handed and FRITZ in handed:
             print("Pi-hole is healthy again, but the LAN still uses the FRITZ!Box DNS (break glass active).\n"
-                  f"Switch back: set the Local DNS server to {PI} (`{sys.argv[0]} open`), then renew leases.")
+                  f"Switch back: set the Local DNS server to {PI} (`{PROG} open`), then renew leases.")
         else:
             print("All fine: Pi-hole answers. Nothing to do.")
             if FRITZ in mine:
-                print(f"This Mac still bypasses Pi-hole; undo with `{sys.argv[0]} mac-reset`.")
+                print(f"This Mac still bypasses Pi-hole; undo with `{PROG} mac-reset`.")
     else:
         print("Pi-hole is down" + ("" if pi_ping else " (the whole Pi doesn't answer)") + ".")
         if pi_ping:
@@ -188,8 +189,8 @@ def check():
         if handed and FRITZ in handed:
             print("The FRITZ!Box already hands out its own DNS. Renew leases on devices that still fail.")
         else:
-            print(f"Break glass: `{sys.argv[0]} open`, set the Local DNS server to {FRITZ}, then renew leases\n"
-                  f"(BREAK-GLASS.md step 3). Only this Mac, right now: `{sys.argv[0]} mac-fritz`.")
+            print(f"Break glass: `{PROG} open`, set the Local DNS server to {FRITZ}, then renew leases\n"
+                  f"(BREAK-GLASS.md step 3). Only this Mac, right now: `{PROG} mac-fritz`.")
 
 
 def open_ui():

@@ -8,12 +8,15 @@ names stop resolving on every device. This procedure points the LAN back to the 
 Monitoring and alerts run on the same Pi, so no push notification will tell you. You notice it
 because websites stop loading while the Wi-Fi and the internet line look fine.
 
-## Shortcut: `break-glass/fritz-dns` (on the Mac)
+## Shortcut: `fritz-dns` (on the Mac)
 ```bash
-break-glass/fritz-dns check       # diagnosis + what to do next (steps 1 and 4)
-break-glass/fritz-dns open        # opens the FRITZ!Box UI by IP, prints the menu path (step 2)
-break-glass/fritz-dns mac-fritz   # only this Mac uses the FRITZ!Box DNS (sudo); undo: mac-reset
+fritz-dns check       # diagnosis + what to do next (steps 1 and 4)
+fritz-dns open        # opens the FRITZ!Box UI by IP, prints the menu path (step 2)
+fritz-dns mac-fritz   # only this Mac uses the FRITZ!Box DNS (sudo); undo: mac-reset
 ```
+The script is `break-glass/fritz-dns` in this repo. It's on `PATH` through a relative symlink in the
+notes repo (`~/markdown/scripts/bin/fritz-dns`), which works on any Mac that has this repo cloned at
+`~/scripts/fritz-monitoring`.
 It can't make the switch itself: FRITZ!OS 8.25 has no TR-064 action to set the LAN's DNS server, only
 one to read it, and scripting the web UI would break on firmware updates. So step 2 stays manual.
 
@@ -21,7 +24,7 @@ one to read it, and scripting the web UI would break on firmware updates. So ste
 - Make sure you can log in to the FRITZ!Box UI: know the admin password (password manager), and
   check you can open it by IP, `http://192.168.178.1`.
 - Keep a copy of this page that doesn't need the LAN, e.g. on your phone.
-- Run `break-glass/fritz-dns check` once now. macOS may ask whether Python may access the local
+- Run `fritz-dns check` once now. macOS may ask whether Python may access the local
   network; allow it, otherwise the checks fail during the outage.
 - Optional, so `check` also shows which DNS server the box hands out: store a FRITZ!Box login in
   the Keychain once (any user with "FRITZ!Box Settings" rights, e.g. the monitoring user):
