@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+"""Break-glass helper for when the Pi (Pi-hole) is down and the LAN has no DNS. See BREAK-GLASS.md.
+
+Runs on the Mac, Python standard library only. It can't switch the FRITZ!Box's "Local DNS server"
+itself: FRITZ!OS 8.25 has no TR-064 action for that, only GetDNSServers to read it. So the switch
+stays two clicks in the web UI; this script tells you whether you need it and checks the result.
+
+  fritz-dns check        diagnose: Pi, Pi-hole, FRITZ!Box DNS, what the box hands out, this Mac's DNS
+  fritz-dns open         open the FRITZ!Box web UI by IP and print the menu path
+  fritz-dns mac-fritz    point only this Mac's active network service at the FRITZ!Box DNS (sudo)
+  fritz-dns mac-reset    undo mac-fritz: back to the DNS server from DHCP (sudo)
+
+Reading what the box hands out needs a FRITZ!Box login: FRITZ_USERNAME / FRITZ_PASSWORD from the
+environment, or a Keychain item stored once with
+  security add-generic-password -s fritzbox-tr064 -a <fritzbox-user> -w
+Without one, `check` skips that line. Override addresses with FRITZ_HOST / PI_HOST.
+"""
+import os
+import random
+import re
+import socket
+import struct
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+FRITZ = os.environ.get("FRITZ_HOST", "192.168.178.1")
+PI = os.environ.get("PI_HOST", "192.168.178.27")
+KEYCHAIN_SERVICE = "fritzbox-tr064"
+TEST_NAME = "example.com"
+MENU_PATH = ("Home Network → Network → Network Settings → IPv4 Settings → Local DNS server\n"
+             "  (Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Einstellungen → Lokaler DNS-Server)")
+
+OK, BAD, SKIP = "\033[32mOK  \033[0m", "\033[31mFAIL\033[0m", "\033[33m--  \033[0m"
+if not sys.stdout.isatty():
+    OK, BAD, SKIP = "OK  ", "FAIL", "--  "
+
+
+# ---------------------------------------------------------------- probes
+def ping(host):
+    timeout = ["-t", "2"] if sys.platform == "darwin" else ["-W", "2"]
+    return subprocess.run(["ping", "-c", "1", *timeout, host], capture_output=True).returncode == 0
+
+
+def dns_answers(server, name=TEST_NAME):
+    """True if the server resolves name. Two tries: the first LAN access can fail on macOS (Local Network check)."""
+    return dns_query(server, name) or dns_query(server, name)
+
+
+def dns_query(server, name, timeout=2.0):
+    """Send one A query over UDP. True if the server answers without error and with at least one record."""
+    qid = random.randint(0, 0xFFFF)
+    qname = b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0"
+    query = struct.pack(">HHHHHH", qid, 0x0100, 1, 0, 0, 0) + qname + struct.pack(">HH", 1, 1)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.settimeout(timeout)
+        try:
+            s.sendto(query, (server, 53))
+            reply = s.recv(512)
+        except OSError:
+            return False
+    rid, flags, _, ancount = struct.unpack(">HHHH", reply[:8])
+    return rid == qid and flags & 0x000F == 0 and ancount > 0
+
+
+def web_ui_up():
+    try:
+        urllib.request.urlopen(f"http://{FRITZ}/", timeout=3)
+        return True
+    except urllib.error.HTTPError:
+        return True  # any HTTP answer means the UI is there
+    except OSError:
+        return False
+
+
+def credentials():
+    user, password = os.environ.get("FRITZ_USERNAME"), os.environ.get("FRITZ_PASSWORD")
+    if user and password:
+        return user, password
+    try:
+        attrs = subprocess.run(["security", "find-generic-password", "-s", KEYCHAIN_SERVICE],
+                               capture_output=True, text=True)
+        password = subprocess.run(["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
+                                  capture_output=True, text=True)
+    except FileNotFoundError:  # not a Mac
+        return None
+    account = re.search(r'"acct"<blob>="(.*?)"', attrs.stdout)
+    if attrs.returncode or password.returncode or not account:
+        return None
+    return account.group(1), password.stdout.rstrip("\n")
+
+
+def handed_out_dns(user, password):
+    """The DNS server(s) the FRITZ!Box DHCP gives to clients (TR-064 LANHostConfigManagement)."""
+    base = f"http://{FRITZ}:49000"
+    mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    mgr.add_password(None, base, user, password)
+    opener = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(mgr))
+    svc = "urn:dslforum-org:service:LANHostConfigManagement:1"
+    body = ('<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
+            's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>'
+            f'<u:GetDNSServers xmlns:u="{svc}"/></s:Body></s:Envelope>')
+    req = urllib.request.Request(f"{base}/upnp/control/lanhostconfigmgm", body.encode(),
+                                 {"Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f"{svc}#GetDNSServers"})
+    reply = opener.open(req, timeout=10).read().decode()
+    return [s.strip() for s in re.search(r"<NewDNSServers>(.*?)</", reply).group(1).split(",") if s.strip()]
+
+
+def mac_resolvers():
+    try:
+        out = subprocess.run(["scutil", "--dns"], capture_output=True, text=True).stdout
+    except FileNotFoundError:
+        return []
+    # The first "resolver #1" block is the default one.
+    first = out.split("resolver #2")[0]
+    return list(dict.fromkeys(re.findall(r"nameserver\[\d+\]\s*:\s*(\S+)", first)))
+
+
+# ---------------------------------------------------------------- macOS network service
+def active_service():
+    """Name of the network service (e.g. "Wi-Fi") that carries the default route."""
+    route = subprocess.run(["route", "-n", "get", "default"], capture_output=True, text=True).stdout
+    dev = re.search(r"interface:\s*(\S+)", route)
+    if not dev:
+        sys.exit("No default route: is this Mac connected to the network?")
+    # Blocks like "(1) Wi-Fi\n(Hardware Port: Wi-Fi, Device: en0)"; the service name can be renamed.
+    order = subprocess.run(["networksetup", "-listnetworkserviceorder"], capture_output=True, text=True).stdout
+    for service, device in re.findall(r"^\(\d+\) (.+)\n\(Hardware Port: .*?, Device: (\S+)\)", order, re.M):
+        if device == dev.group(1):
+            return service
+    sys.exit(f"No network service found for interface {dev.group(1)}.")
+
+
+def set_mac_dns(*servers):
+    service = active_service()
+    print(f"Setting DNS of \"{service}\" to {' '.join(servers)} (needs sudo)")
+    subprocess.run(["sudo", "networksetup", "-setdnsservers", service, *servers], check=True)
+    subprocess.run(["sudo", "dscacheutil", "-flushcache"], check=False)
+    subprocess.run(["sudo", "killall", "-HUP", "mDNSResponder"], check=False)
+    print("Now using:", ", ".join(mac_resolvers()) or "?")
+
+
+# ---------------------------------------------------------------- commands
+def check():
+    pi_ping, pi_dns = ping(PI), dns_answers(PI)
+    fritz_dns, fritz_ui = dns_answers(FRITZ), web_ui_up()
+    print(f"{OK if pi_ping else BAD} Pi {PI} answers ping")
+    print(f"{OK if pi_dns else BAD} Pi-hole on {PI} resolves {TEST_NAME}")
+    print(f"{OK if fritz_dns else BAD} FRITZ!Box DNS on {FRITZ} resolves {TEST_NAME}")
+    print(f"{OK if fritz_ui else BAD} FRITZ!Box web UI http://{FRITZ} reachable")
+
+    handed = None
+    creds = credentials()
+    if creds is None:
+        print(f"{SKIP} DNS server the FRITZ!Box hands out: no login (see `{sys.argv[0]} -h`)")
+    else:
+        try:
+            handed = handed_out_dns(*creds)
+            print(f"{OK} FRITZ!Box hands out DNS server: {', '.join(handed)}")
+        except urllib.error.HTTPError as e:
+            print(f"{BAD} Reading the handed-out DNS server: HTTP {e.code}"
+                  + (" (wrong FRITZ!Box user or password)" if e.code == 401 else ""))
+        except (OSError, AttributeError) as e:
+            print(f"{BAD} Reading the handed-out DNS server: {e}")
+    mine = mac_resolvers()
+    if mine:
+        print(f"{SKIP} This Mac uses DNS: {', '.join(mine)}")
+
+    print()
+    if not fritz_dns:
+        print("The FRITZ!Box DNS itself doesn't answer: this is a FRITZ!Box / internet line problem,\n"
+              "not the Pi. Switching DNS won't help.")
+    elif pi_dns:
+        if handed and FRITZ in handed:
+            print("Pi-hole is healthy again, but the LAN still uses the FRITZ!Box DNS (break glass active).\n"
+                  f"Switch back: set the Local DNS server to {PI} (`{sys.argv[0]} open`), then renew leases.")
+        else:
+            print("All fine: Pi-hole answers. Nothing to do.")
+            if FRITZ in mine:
+                print(f"This Mac still bypasses Pi-hole; undo with `{sys.argv[0]} mac-reset`.")
+    else:
+        print("Pi-hole is down" + ("" if pi_ping else " (the whole Pi doesn't answer)") + ".")
+        if pi_ping:
+            print("  Try first: ssh cornholio 'cd fritz-monitoring && docker compose up -d pihole'")
+        else:
+            print("  Try first: power-cycle the Pi once and wait 2 minutes, then run check again.")
+        if handed and FRITZ in handed:
+            print("The FRITZ!Box already hands out its own DNS. Renew leases on devices that still fail.")
+        else:
+            print(f"Break glass: `{sys.argv[0]} open`, set the Local DNS server to {FRITZ}, then renew leases\n"
+                  f"(BREAK-GLASS.md step 3). Only this Mac, right now: `{sys.argv[0]} mac-fritz`.")
+
+
+def open_ui():
+    print(f"Opening http://{FRITZ} (use the IP: fritz.box needs working DNS).\nThen: {MENU_PATH}")
+    print(f"  Break glass: {PI} → {FRITZ}      Switch back: {FRITZ} → {PI}")
+    print("  Apply, confirm on the box if asked. Also IPv6 Settings, if the Pi is set there.")
+    subprocess.run(["open", f"http://{FRITZ}/"], check=False)
+
+
+COMMANDS = {
+    "check": check,
+    "open": open_ui,
+    "mac-fritz": lambda: set_mac_dns(FRITZ),
+    "mac-reset": lambda: set_mac_dns("Empty"),
+}
+
+if __name__ == "__main__":
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "check"
+    if cmd not in COMMANDS:
+        print(__doc__.strip())
+        sys.exit(0 if cmd in ("-h", "--help", "help") else 2)
+    try:
+        COMMANDS[cmd]()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"Command failed: {' '.join(e.cmd)}")

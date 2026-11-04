@@ -137,6 +137,7 @@ flowchart TB
 | `ROADMAP.md` | Planned extensions, ticked off as they're done |
 | `FRITZ-METRICS.md` | What the FRITZ!Box exporter delivers, and how other dashboards' metrics map to it |
 | `BREAK-GLASS.md` | Switching the LAN's DNS to the FRITZ!Box when the Pi is down, and back |
+| `break-glass/fritz-dns` | Mac helper for `BREAK-GLASS.md`: diagnosis, opens the FRITZ!Box UI, DNS for this Mac only |
 | `REINSTALL-PI.md` | How the Pi was reinstalled (OS on the USB SSD, bootloader recovery) |
 | `CLAUDE.md` | Context and rules for Claude Code |
 
