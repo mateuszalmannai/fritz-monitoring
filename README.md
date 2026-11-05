@@ -504,6 +504,15 @@ docker compose restart prometheus              # after editing prometheus.yml or
 docker compose restart blackbox-exporter       #   (blackbox.yml)
 ```
 
+**What updates itself and what doesn't:**
+
+| What | When | Automatic? |
+|---|---|---|
+| Pi-hole blocklist (gravity) | Sundays 04:29 | Yes, cron inside the Pi-hole container |
+| Pi-hole version check | daily 16:04 | Only checks; shows new versions in the web UI |
+| Docker images | Diun notifies Mondays 09:00 | No: pinned tags, updated by hand (below) |
+| Raspberry Pi OS packages | when you run `apt` | No: `unattended-upgrades` isn't installed (below) |
+
 **Update notifications (Diun):** every Monday at 09:00 Diun checks Docker Hub and sends a low-priority
 ntfy push (📦) when something is new. Two kinds of messages:
 - *Updated* `prom/prometheus:v3` (moving tag): a newer release was published under the same tag →
@@ -520,7 +529,8 @@ Run a check now: `docker compose restart diun` (it checks on start).
 `:v3`), `docker compose pull && docker compose up -d` alone fetches the latest release in that major
 version. Clean up old images with `docker image prune`.
 
-**Updating the Pi:** `sudo apt update && sudo apt full-upgrade`, and occasionally
+**Updating the Pi:** OS packages, including security fixes, are only installed when you run
+`sudo apt update && sudo apt full-upgrade`, so do it every few weeks. Occasionally also run
 `sudo rpi-eeprom-update -a` for the bootloader (see `REINSTALL-PI.md` if it doesn't come back up).
 
 **Verify everything works:**

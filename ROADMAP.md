@@ -54,6 +54,9 @@ All planned items are done. New ideas go into a new section here.
       evening): 58.7 / 21.4 Mbit/s vs. current DSL sync 63.7 / 23.4 (~92 %, normal). The line could
       sync at ~133 / 52 (`type="max"`), so the tariff/profile is the limit, not the line.
 
+- [ ] **Unattended security upgrades** for Raspberry Pi OS (`unattended-upgrades`, Debian security
+      origin only, no automatic reboot). OS packages are currently updated by hand only.
+
 ## Decided against
 - **Unbound** (recursive DNS): conflicts with "FRITZ!Box as Pi-hole upstream", little gain. Rechecked
   2026-11-05: uncached answers via the FRITZ!Box take ~11 ms, recursion would take 50–150 ms.
