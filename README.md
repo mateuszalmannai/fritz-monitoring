@@ -260,6 +260,11 @@ IPv4 Settings → Local DNS server** = the Pi's IP.
 - Check on a Mac: `scutil --dns | grep nameserver` shows the Pi's IP.
 - **Don't** enter the Pi as the FRITZ!Box's own upstream DNS (Internet → Account Information →
   DNS Server). Pi-hole forwards to the FRITZ!Box, so that would create a loop.
+- Blocklist: **HaGeZi Multi PRO** (`https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt`,
+  ~220k domains, since 2026-11-05). StevenBlack is kept but disabled. Change lists under Lists in the web
+  UI, then Tools → Update Gravity. If a site breaks, allowlist the blocked domain from the Query Log
+  rather than switching lists. Pro deliberately leaves Google ad click domains (`doubleclick.net`,
+  `ad.doubleclick.net`) unblocked so ad and shopping links work; Pro++ would block them.
 - Pi-hole blocks `mask.icloud.com`, so Apple devices turn off iCloud Private Relay on this network
   and Safari is filtered too. Private Relay stays active on other networks.
 - If you enable IPv6 in the LAN, also set the local DNS server under IPv6 Settings, otherwise devices

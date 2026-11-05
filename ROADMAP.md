@@ -6,6 +6,9 @@ Tick items off as they're done; add the date.
 ## Done
 - [x] FRITZ!Box monitoring: fritz_exporter, Prometheus, Grafana, dashboard 13983 (2026-10-10)
 - [x] Pi-hole as LAN DNS, upstream FRITZ!Box (2026-10-10)
+- [x] Pi-hole tuning review (2026-11-05): blocklist switched from StevenBlack to HaGeZi Multi PRO
+      (77k → 222k domains). Cache size, serve-stale and query history (91 days) left as they are;
+      see `docs/pihole-tuning.md` for the measurements.
 
 ## Next
 - [x] **node_exporter**: health of the Pi itself (CPU temperature, load, RAM, SSD usage, network).
@@ -52,7 +55,11 @@ All planned items are done. New ideas go into a new section here.
       sync at ~133 / 52 (`type="max"`), so the tariff/profile is the limit, not the line.
 
 ## Decided against
-- **Unbound** (recursive DNS): conflicts with "FRITZ!Box as Pi-hole upstream", little gain.
+- **Unbound** (recursive DNS): conflicts with "FRITZ!Box as Pi-hole upstream", little gain. Rechecked
+  2026-11-05: uncached answers via the FRITZ!Box take ~11 ms, recursion would take 50–150 ms.
+- **Bigger Pi-hole cache** (2026-11-05): 10 000 entries, 0 evictions; larger sizes slow lookups.
+- **365-day Pi-hole query history** (2026-11-05): Prometheus already keeps a year of aggregate stats;
+  a year of per-device domain history isn't worth the privacy cost. Stays at 91 days.
 - **cAdvisor** (per-container metrics): too heavy on a Pi for what it shows.
 - **Watchtower** (automatic updates): conflicts with pinned image versions.
 - **Powerline throughput test** (iperf3, 2026-10-13): the only device at the far adapter is a Raspberry Pi 2 (100 Mbit/s Ethernet), which would cap every result at ~94 Mbit/s. The mesh panels keep the powerline PHY rate. Worth it only with a gigabit device there.
